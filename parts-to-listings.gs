@@ -159,8 +159,8 @@ function updateListingsParts() {
   const lItemCol = 1; // A
   const lPartsCol = 11; // K
 
-  // Parts: A~F
-  const pData = parts.getRange(2, 1, parts.getLastRow() - 1, 6).getValues();
+  // Parts: A~F (getDisplayValues로 텍스트 그대로 읽기)
+  const pData = parts.getRange(2, 1, parts.getLastRow() - 1, 6).getDisplayValues();
 
   // Item No 기준 Parts 그룹핑
   const partsMap = {};
@@ -174,7 +174,7 @@ function updateListingsParts() {
   const lData = listings.getRange(2, 1, lLastRow - 1, listings.getLastColumn()).getValues();
 
   lData.forEach(row => {
-    const itemNo = row[lItemCol - 1];
+    const itemNo = String(row[lItemCol - 1]).trim();
     if (!itemNo || !partsMap[itemNo]) {
       row[lPartsCol - 1] = '';
       return;
@@ -217,9 +217,9 @@ function updateListingsParts() {
     row[lPartsCol - 1] = (result + partsText.join('/')).trim();
   });
 
-  listings
-    .getRange(2, lPartsCol, lData.length, 1)
-    .setValues(lData.map(r => [r[lPartsCol - 1]]));
+  const outputRange = listings.getRange(2, lPartsCol, lData.length, 1);
+  outputRange.setNumberFormat('@');
+  outputRange.setValues(lData.map(r => [String(r[lPartsCol - 1])]));
 
   SpreadsheetApp.getUi().alert('Listings Parts 전체 업데이트 완료 ✅');
 }
