@@ -27,10 +27,10 @@ function syncListingsToParts() {
   const preserveMap = {}; // key: "itemNo|partNo" → {호환부품, 재고}
 
   if (pLastRow >= 2) {
-    const pData = partsSheet.getRange(2, 1, pLastRow - 1, 6).getValues();
+    const pData = partsSheet.getRange(2, 1, pLastRow - 1, 6).getDisplayValues();
     pData.forEach(r => {
       existingParts.push(r);
-      const key = String(r[0]).trim() + '|' + String(r[1]).trim();
+      const key = r[0].trim() + '|' + r[1].trim();
       preserveMap[key] = {
         호환부품: r[3], // D
         재고: r[5]      // F
@@ -69,12 +69,12 @@ function syncListingsToParts() {
       const preserved = preserveMap[key] || {};
 
       parsedRows.push([
-        itemNo,                          // A: Item No
-        p.partNo,                        // B: Part No
-        p.qty,                           // C: Quantity
+        String(itemNo),                  // A: Item No (문자열 강제)
+        String(p.partNo),                // B: Part No (문자열 강제)
+        String(p.qty),                   // C: Quantity
         preserved.호환부품 || '',          // D: 호환부품 (보존)
         parsed.brand || '',              // E: 브랜드
-        preserved.재고 !== undefined ? preserved.재고 : '' // F: 재고 (보존)
+        preserved.재고 || ''              // F: 재고 (보존)
       ]);
     });
 
@@ -96,11 +96,9 @@ function syncListingsToParts() {
 
   if (allRows.length > 0) {
     const writeRange = partsSheet.getRange(2, 1, allRows.length, 6);
+    // 전체를 텍스트 형식으로 설정한 후 값 쓰기 (숫자 변환 방지)
+    writeRange.setNumberFormat('@');
     writeRange.setValues(allRows);
-
-    // A열(Item No)과 B열(Part No)을 텍스트 형식으로 강제
-    partsSheet.getRange(2, 1, allRows.length, 1).setNumberFormat('@');
-    partsSheet.getRange(2, 2, allRows.length, 1).setNumberFormat('@');
   }
 
   SpreadsheetApp.getUi().alert(
