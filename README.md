@@ -17,10 +17,42 @@ Listings.csv (조합 문자열)  ──  convert_listings.py  ──►  parts_f
 googlesheet-listings-converter/
 ├── convert_listings.py          # [Python] Listings → Parts 변환 스크립트
 ├── parts-to-listings.gs         # [Apps Script] Parts → Listings 변환 스크립트
-├── Listings.csv                 # 입력 파일 (Item No, Parts)
-├── parts_for_googlesheets.csv   # 출력 파일 (Item No, Part, Quantity)
+├── .gitignore                   # CSV 데이터 파일 등 제외
 └── README.md
 ```
+
+> CSV 데이터 파일(`Listings.csv`, `parts_for_googlesheets.csv`)은 `.gitignore`로 제외되어 있습니다.
+> 스크립트 실행 시 로컬에 생성/사용됩니다.
+
+## Google Sheets 시트 구조
+
+### Listings 시트
+
+| 열 | A | B | C | D | E | F | G | H | I | J | K | L |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 내용 | Item No | Title | 구매가 | 배송비 | 판매가 | 배송옵션 | 총판매가 | 광고비 | 마진 | 마진율 | Parts | 특이사항 |
+
+### Parts 시트
+
+| 열 | A | B | C | D | E | F |
+|---|---|---|---|---|---|---|
+| 내용 | Item No | Part No | Quantity | 호환부품 | 브랜드 | 재고 |
+
+### Orders 시트
+
+| 열 | A | B | C | D | E | F | G | H | I |
+|---|---|---|---|---|---|---|---|---|---|
+| 내용 | Order Number | Date | Item(=Item No) | Qty | Record | Parts | Title | Username | Country |
+
+| 열 | J | K | L | M | N | O | P | Q |
+|---|---|---|---|---|---|---|---|---|
+| 내용 | 구매가 | 배송비 | 관세 | Net | 순수익 | 구매 | mag | 특이사항(서명/VIN) |
+
+| 열 | R | S | T | U | V | W~Z |
+|---|---|---|---|---|---|---|
+| 내용 | 배송 | Tracking | 배송상태 | 도착일 | Record | 수신자 정보 |
+
+- Orders의 **Parts**(F), **구매가**(J), **배송비**(K)는 Item No 기준으로 Listings 시트에서 VLOOKUP으로 가져옵니다.
 
 ## convert_listings.py
 
@@ -55,16 +87,9 @@ python convert_listings.py
 
 ## parts-to-listings.gs
 
-Google Apps Script로, Google Sheets 내에서 Parts 시트의 개별 파트 데이터를 Listings 시트의 K열에 조합 문자열로 기록합니다.
+Google Apps Script로, Parts 시트의 개별 파트 데이터를 Listings 시트의 K열(Parts)에 조합 문자열로 기록합니다.
 
-### Google Sheets 시트 구조
-
-**Parts 시트** (입력)
-
-| A: Item No | B: Part No | C: Quantity | D: - | E: Brand | F: Stock |
-|---|---|---|---|---|---|
-
-**Listings 시트** (출력 - K열)
+### 출력 형식
 
 | 형식 | 예시 |
 |---|---|
