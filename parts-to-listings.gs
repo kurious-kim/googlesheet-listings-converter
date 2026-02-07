@@ -1,5 +1,136 @@
 /**
- * Listings 전체 업데이트
+ * 메뉴 등록
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Parts Management')
+    .addItem('Listings → Parts 동기화', 'syncListingsToParts')
+    .addItem('Parts → Listings 업데이트', 'updateListingsParts')
+    .addToUi();
+}
+
+/**
+ * Listings K열의 Parts 문자열을 파싱하여 Parts 시트에 동기화
+ * - 기존 호환부품(D열)과 재고(F열)는 보존
+ */
+function syncListingsToParts() {
+  const ss = SpreadsheetApp.getActive();
+  const listings = ss.getSheetByName('Listings');
+  const partsSheet = ss.getSheetByName('Parts');
+
+  const lLastRow = listings.getLastRow();
+  if (lLastRow < 2) return;
+
+  // 기존 Parts 데이터에서 호환부품(D)과 재고(F) 보존용 Map
+  // key: "itemNo|partNo" → {호환부품, 재고}
+  const preserveMap = {};
+  const pLastRow = partsSheet.getLastRow();
+  if (pLastRow >= 2) {
+    const pData = partsSheet.getRange(2, 1, pLastRow - 1, 6).getValues();
+    pData.forEach(r => {
+      const key = String(r[0]).trim() + '|' + String(r[1]).trim();
+      preserveMap[key] = {
+        호환부품: r[3], // D
+        재고: r[5]      // F
+      };
+    });
+  }
+
+  // Listings에서 Item No(A)와 Parts(K) 읽기
+  const lData = listings.getRange(2, 1, lLastRow - 1, 12).getValues();
+
+  const newPartsRows = [];
+  let processed = 0;
+  let skipped = 0;
+
+  lData.forEach(row => {
+    const itemNo = String(row[0]).trim(); // A
+    const partsStr = String(row[10]).trim(); // K (index 10)
+
+    if (!itemNo || !partsStr) {
+      skipped++;
+      return;
+    }
+
+    // "OUT OF STOCK"만 있으면 스킵 (기존 Parts 데이터 유지)
+    if (partsStr === 'OUT OF STOCK') {
+      skipped++;
+      return;
+    }
+
+    const parsed = parsePartsString(partsStr);
+
+    parsed.parts.forEach(p => {
+      const key = itemNo + '|' + p.partNo;
+      const preserved = preserveMap[key] || {};
+
+      newPartsRows.push([
+        itemNo,                          // A: Item No
+        p.partNo,                        // B: Part No
+        p.qty,                           // C: Quantity
+        preserved.호환부품 || '',          // D: 호환부품 (보존)
+        parsed.brand || '',              // E: 브랜드
+        preserved.재고 !== undefined ? preserved.재고 : '' // F: 재고 (보존)
+      ]);
+    });
+
+    processed++;
+  });
+
+  // Parts 시트 덮어쓰기 (헤더 유지)
+  if (pLastRow >= 2) {
+    partsSheet.getRange(2, 1, pLastRow - 1, 6).clear();
+  }
+
+  if (newPartsRows.length > 0) {
+    partsSheet.getRange(2, 1, newPartsRows.length, 6).setValues(newPartsRows);
+  }
+
+  SpreadsheetApp.getUi().alert(
+    `Parts 동기화 완료 ✅\n\n처리: ${processed}개 리스팅\n스킵: ${skipped}개\n생성된 Parts 행: ${newPartsRows.length}개`
+  );
+}
+
+/**
+ * Parts 문자열 파싱
+ * "[IN STOCK] [Hyundai] 373003C531*2/371804D010" →
+ *   { brand: "Hyundai", parts: [{partNo, qty}, ...] }
+ */
+function parsePartsString(str) {
+  let remaining = str.trim();
+  let brand = '';
+
+  // [IN STOCK] 제거
+  if (remaining.startsWith('[IN STOCK]')) {
+    remaining = remaining.substring(10).trim();
+  }
+
+  // [Brand] 추출
+  const brandMatch = remaining.match(/^\[([^\]]+)\]/);
+  if (brandMatch) {
+    brand = brandMatch[1].trim();
+    remaining = remaining.substring(brandMatch[0].length).trim();
+  }
+
+  // Parts 분리: "PartA*2/PartB" → [{partNo, qty}]
+  const parts = [];
+  remaining.split('/').forEach(segment => {
+    segment = segment.trim();
+    if (!segment) return;
+
+    const qtyMatch = segment.match(/^(.+)\*(\d+)$/);
+    if (qtyMatch) {
+      parts.push({ partNo: qtyMatch[1].trim(), qty: parseInt(qtyMatch[2], 10) });
+    } else {
+      parts.push({ partNo: segment, qty: 1 });
+    }
+  });
+
+  return { brand, parts };
+}
+
+/**
+ * Parts → Listings 전체 업데이트
  */
 function updateListingsParts() {
   const ss = SpreadsheetApp.getActive();

@@ -4,11 +4,15 @@ Google Sheets 기반 자동차 부품 재고 관리를 위한 데이터 변환 �
 
 ## 개요
 
-두 가지 변환 도구로 구성되어 있으며, 서로 반대 방향의 변환을 수행합니다.
+세 가지 도구로 구성되어 있습니다.
 
 ```
-Parts 시트 (개별 행)  ──  parts-to-listings.gs  ──►  Listings 시트 K열 (조합 문자열)
-Listings.csv (조합 문자열)  ──  convert_listings.py  ──►  parts_for_googlesheets.csv (개별 행)
+[Apps Script - Google Sheets 내에서 실행]
+Listings K열  ──  syncListingsToParts()    ──►  Parts 시트 (개별 행 생성)
+Parts 시트    ──  updateListingsParts()    ──►  Listings K열 (조합 문자열)
+
+[Python - 로컬에서 실행 (레거시)]
+Listings.csv  ──  convert_listings.py      ──►  parts_for_googlesheets.csv
 ```
 
 ## 파일 구조
@@ -54,7 +58,9 @@ googlesheet-listings-converter/
 
 - Orders의 **Parts**(F), **구매가**(J), **배송비**(K)는 Item No 기준으로 Listings 시트에서 VLOOKUP으로 가져옵니다.
 
-## convert_listings.py
+## convert_listings.py (레거시)
+
+> `syncListingsToParts()`로 대체되었습니다. 대량 데이터 초기 마이그레이션 시에만 사용합니다.
 
 Listings CSV의 Parts 문자열을 파싱하여 Google Sheets에서 활용하기 편한 long format CSV로 변환합니다.
 
@@ -85,20 +91,36 @@ python convert_listings.py
 
 `Listings.csv` 파일이 스크립트와 같은 디렉토리에 있어야 합니다.
 
-## parts-to-listings.gs
+## parts-to-listings.gs (Apps Script)
 
-Google Apps Script로, Parts 시트의 개별 파트 데이터를 Listings 시트의 K열(Parts)에 조합 문자열로 기록합니다.
+Google Sheets 내에서 Listings ↔ Parts 시트 간 양방향 동기화를 수행합니다.
+스프레드시트를 열면 **Parts Management** 메뉴가 자동으로 추가됩니다.
 
-### 출력 형식
+### syncListingsToParts() — Listings → Parts
 
-| 형식 | 예시 |
+Listings K열의 Parts 문자열을 파싱하여 Parts 시트에 개별 행으로 생성합니다.
+기존 Parts의 **호환부품(D열)**과 **재고(F열)**는 보존됩니다.
+
+| 입력 (Listings K열) | 출력 (Parts 시트) |
 |---|---|
-| `[IN STOCK] [Brand] PartA*2/PartB` | `[IN STOCK] [Hyundai] 373003C531*2/371804D010` |
-| `OUT OF STOCK` | 재고(F열)가 0인 경우 |
+| `[IN STOCK] [Hyundai] 373003C531*2/371804D010` | Item No, 373003C531, 2, (보존), Hyundai, (보존) |
+| | Item No, 371804D010, 1, (보존), Hyundai, (보존) |
+| `OUT OF STOCK` | 스킵 (기존 데이터 유지) |
+
+### updateListingsParts() — Parts → Listings
+
+Parts 시트의 개별 파트 데이터를 Listings K열에 조합 문자열로 기록합니다.
+
+| Parts 시트 상태 | 출력 (Listings K열) |
+|---|---|
+| 재고 있음 | `[IN STOCK] [Brand] PartA*2/PartB` |
+| 재고 = 0 | `OUT OF STOCK` |
 
 ### 사용법
 
-Google Sheets의 Apps Script 편집기에 코드를 붙여넣고 `updateListingsParts()` 함수를 실행합니다.
+1. Google Sheets의 Apps Script 편집기에 코드를 붙여넣기
+2. 스프레드시트를 새로고침하면 **Parts Management** 메뉴 표시
+3. 메뉴에서 원하는 기능 선택
 
 ## 요구사항
 
