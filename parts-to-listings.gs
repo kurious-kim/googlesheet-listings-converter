@@ -21,13 +21,15 @@ function syncListingsToParts() {
   const lLastRow = listings.getLastRow();
   if (lLastRow < 2) return;
 
-  // 기존 Parts 데이터에서 호환부품(D)과 재고(F) 보존용 Map
-  // key: "itemNo|partNo" → {호환부품, 재고}
-  const preserveMap = {};
+  // 기존 Parts 데이터 읽기
   const pLastRow = partsSheet.getLastRow();
+  const existingParts = []; // 전체 기존 데이터
+  const preserveMap = {}; // key: "itemNo|partNo" → {호환부품, 재고}
+
   if (pLastRow >= 2) {
     const pData = partsSheet.getRange(2, 1, pLastRow - 1, 6).getValues();
     pData.forEach(r => {
+      existingParts.push(r);
       const key = String(r[0]).trim() + '|' + String(r[1]).trim();
       preserveMap[key] = {
         호환부품: r[3], // D
@@ -39,7 +41,9 @@ function syncListingsToParts() {
   // Listings에서 Item No(A)와 Parts(K) 읽기
   const lData = listings.getRange(2, 1, lLastRow - 1, 12).getValues();
 
-  const newPartsRows = [];
+  // 파싱 가능한 Item No 목록과 새 Parts 행 생성
+  const processedItemNos = new Set();
+  const parsedRows = [];
   let processed = 0;
   let skipped = 0;
 
@@ -47,24 +51,24 @@ function syncListingsToParts() {
     const itemNo = String(row[0]).trim(); // A
     const partsStr = String(row[10]).trim(); // K (index 10)
 
-    if (!itemNo || !partsStr) {
-      skipped++;
-      return;
-    }
-
-    // "OUT OF STOCK"만 있으면 스킵 (기존 Parts 데이터 유지)
-    if (partsStr === 'OUT OF STOCK') {
+    if (!itemNo || !partsStr || partsStr === 'OUT OF STOCK') {
       skipped++;
       return;
     }
 
     const parsed = parsePartsString(partsStr);
+    if (parsed.parts.length === 0) {
+      skipped++;
+      return;
+    }
+
+    processedItemNos.add(itemNo);
 
     parsed.parts.forEach(p => {
       const key = itemNo + '|' + p.partNo;
       const preserved = preserveMap[key] || {};
 
-      newPartsRows.push([
+      parsedRows.push([
         itemNo,                          // A: Item No
         p.partNo,                        // B: Part No
         p.qty,                           // C: Quantity
@@ -77,17 +81,30 @@ function syncListingsToParts() {
     processed++;
   });
 
+  // 처리 안 된 Item No의 기존 Parts 행은 그대로 유지
+  const keptRows = existingParts.filter(r => {
+    const itemNo = String(r[0]).trim();
+    return !processedItemNos.has(itemNo);
+  });
+
+  const allRows = [...keptRows, ...parsedRows];
+
   // Parts 시트 덮어쓰기 (헤더 유지)
   if (pLastRow >= 2) {
     partsSheet.getRange(2, 1, pLastRow - 1, 6).clear();
   }
 
-  if (newPartsRows.length > 0) {
-    partsSheet.getRange(2, 1, newPartsRows.length, 6).setValues(newPartsRows);
+  if (allRows.length > 0) {
+    const writeRange = partsSheet.getRange(2, 1, allRows.length, 6);
+    writeRange.setValues(allRows);
+
+    // A열(Item No)과 B열(Part No)을 텍스트 형식으로 강제
+    partsSheet.getRange(2, 1, allRows.length, 1).setNumberFormat('@');
+    partsSheet.getRange(2, 2, allRows.length, 1).setNumberFormat('@');
   }
 
   SpreadsheetApp.getUi().alert(
-    `Parts 동기화 완료 ✅\n\n처리: ${processed}개 리스팅\n스킵: ${skipped}개\n생성된 Parts 행: ${newPartsRows.length}개`
+    `Parts 동기화 완료 ✅\n\n처리: ${processed}개 리스팅\n유지: ${keptRows.length}개 행 (기존 보존)\n생성: ${parsedRows.length}개 행\n스킵: ${skipped}개 리스팅`
   );
 }
 
